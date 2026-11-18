@@ -1,0 +1,31 @@
+name: measure
+on:
+  push:
+    branches: [main]
+    paths: ['docs/**']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: micro-data
+  cancel-in-progress: false
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: second
+          path: data
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run measure
+        run: python engine/measure.py --docs docs --data data
+      - name: Commit data
+        run: |
+          git -C data config user.name 'micro-bot'
+          git -C data config user.email 'micro-bot@users.noreply.github.com'
+          git -C data add -A
+          git -C data diff --cached --quiet || (git -C data commit -m 'measure: ledger' && git -C data push origin HEAD:second)
