@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Local run artifacts (data belongs on 'second', not 'main')
+/ledger/
+/views/
+/data/
+
+# OS noise
+.DS_Store
