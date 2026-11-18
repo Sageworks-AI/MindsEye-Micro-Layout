@@ -1,0 +1,11 @@
+{
+  "events": [
+    {"type": "measured", "source": "docs/sample.docx#s1", "count": 4},
+    {"type": "measured", "source": "docs/sample.docx#s2", "count": 3},
+    {"type": "measured", "source": "docs/sample.docx#s3", "count": 2},
+    {"type": "matched", "source": "docs/sample.docx#s1", "shape": "a4-word-default", "drift_max": 0.02, "count": 1},
+    {"type": "matched", "source": "docs/sample.docx#s2", "shape": "a5-novel-11", "drift_max": 0.02, "count": 1},
+    {"type": "new_shape_candidate", "source": "docs/sample.docx#s3", "shape": "a4-legal-12-15", "drift_min": 0.2, "count": 1},
+    {"type": "restructured", "source": "word:maun", "shape": "", "count": 3}
+  ]
+}
