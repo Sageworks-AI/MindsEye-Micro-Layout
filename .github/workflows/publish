@@ -1,0 +1,43 @@
+name: publish
+on:
+  workflow_run:
+    workflows: [match-and-group]
+    types: [completed]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: second
+          path: data
+      - name: Assemble site
+        run: |
+          mkdir -p _site/views _site/ledger _site/config
+          cp site/index.html _site/
+          cp config/windows.json _site/config/
+          cp data/views/* _site/views/
+          cp data/ledger/events.jsonl _site/ledger/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
