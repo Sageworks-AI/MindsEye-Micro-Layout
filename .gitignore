@@ -2,9 +2,7 @@
 __pycache__/
 *.py[cod]
 
-# Local run artifacts (data belongs on 'second', not 'main')
-/ledger/
-/views/
+# Data checkout used by workflows
 /data/
 
 # OS noise
