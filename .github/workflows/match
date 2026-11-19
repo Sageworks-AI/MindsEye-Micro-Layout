@@ -1,0 +1,40 @@
+name: match-and-group
+on:
+  workflow_run:
+    workflows: [measure]
+    types: [completed]
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: micro-data
+  cancel-in-progress: false
+jobs:
+  match:
+    if: >-
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') &&
+      (github.event_name != 'issues' || github.event.label.name == 'seed' || github.event.label.name == 'log')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: second
+          path: data
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run match
+        env:
+          LABEL: ${{ github.event.label.name }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: python engine/match.py --data data
+      - name: Commit data
+        run: |
+          git -C data config user.name 'micro-bot'
+          git -C data config user.email 'micro-bot@users.noreply.github.com'
+          git -C data add -A
+          git -C data diff --cached --quiet || (git -C data commit -m 'match: views and groups' && git -C data push origin HEAD:second)
