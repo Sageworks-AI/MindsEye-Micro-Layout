@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MindsEye Micro-Layout</title>
+<style>
+:root{--bg:#fafaf8;--fg:#1c1c1a;--mut:#6b6b66;--card:#fff;--line:#d8d8d2;--bar:#3b6ea5}
+@media (prefers-color-scheme:dark){:root{--bg:#161614;--fg:#ecece6;--mut:#9a9a92;--card:#1f1f1c;--line:#34342f;--bar:#7aa7d9}}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+header{display:flex;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line)}
+h1{font-size:16px;margin:0;flex:1}
+h2{font-size:12px;margin:0 0 6px;color:var(--mut);text-transform:uppercase}
+main{display:flex;gap:16px;padding:16px;align-items:flex-start;flex-wrap:wrap}
+#names{width:200px;display:flex;flex-direction:column;gap:4px}
+button{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:4px 8px;border-radius:6px;cursor:pointer}
+#names button{text-align:left}
+#names button.on{border-color:var(--bar)}
+#names a{color:var(--bar);padding-left:10px;font-size:13px}
+#grid{display:grid;grid-template-columns:repeat(2,max-content);gap:12px;align-content:start;max-width:100%;overflow:auto}
+.win{background:var(--card);border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;max-width:100%}
+.win:not(.big){cursor:pointer}
+.bar{display:flex;gap:6px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line)}
+.bar strong{flex:1;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar select,.bar button{max-width:110px;font-size:12px}
+.body{padding:8px;overflow:auto;flex:1}
+.tex i,.row i{display:block;background:var(--bar);border-radius:2px;height:6px}
+.says{color:var(--mut);font-size:12px;margin:6px 0 0}
+.row{margin-bottom:10px}.row span{color:var(--mut);margin-right:8px}
+pre{white-space:pre-wrap;font:inherit;margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+</style>
+</head>
+<body>
+<header><h1>MindsEye Micro-Layout</h1><button id="send">Send log (<span id="n">0</span>)</button></header>
+<main><aside id="names"></aside><section id="grid">Loading...</section></main>
+<script>
+const $=s=>document.querySelector(s);
+const E=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
+const A=(e,k)=>e.getAttribute(k);
+const store={get(){try{return JSON.parse(localStorage.getItem('micro.log'))||[]}catch(e){return[]}},
+  set(v){try{localStorage.setItem('micro.log',JSON.stringify(v))}catch(e){}}};
+let cfg,secs=[],opts=[],groups=null,events=[],wins=[],LOG=[],last='start',pick=null;
+const get=async u=>{const r=await fetch(u);if(!r.ok)throw new Error(u);return r};
+const xml=async u=>new DOMParser().parseFromString(await(await get(u)).text(),'application/xml');
+const soft=async f=>{try{return await f()}catch(e){}};
+const sec=id=>secs.find(s=>s.id===id);
+
+function parse(s){
+  const q=t=>[...s.querySelectorAll(t)],n=k=>+A(s,k),t=k=>s.querySelector(k).textContent;
+  return{id:A(s,'id'),title:A(s,'title'),status:A(s,'status'),shape:A(s,'shape'),drift:n('drift'),
+    page:A(s,'page'),font:A(s,'font'),font_pt:n('font_pt'),line:n('line'),after_pt:n('after_pt'),margin:n('margin_ratio'),
+    says:t('says'),rhythm:t('rhythm').trim().split(/\s+/).filter(Boolean).map(Number),
+    heads:q('h').map(h=>[A(h,'level'),+A(h,'count')]),names:q('name').map(x=>x.textContent),text:t('text')};
+}
+
+// log: every interaction becomes a ledger-shaped event, kept locally until sent
+function track(type,source,s,detail){
+  LOG.push({id:'c-'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),type,source,
+    shape:s?s.shape:'',drift:s?s.drift:0,count:1,timestamp:new Date().toISOString().replace(/\.\d+Z$/,'Z'),detail});
+  store.set(LOG);$('#n').textContent=LOG.length;
+  if(type==='window_opened')last=source;
+}
+const opened=(w,via)=>track('window_opened',w.sec,sec(w.sec),{option:w.opt,via,parent:last});
+
+const box=(...c)=>{const d=E('div');d.append(...c);return d};
+const row=(l,v,f)=>{const r=E('div','row'),b=E('i');r.append(E('span',null,l),E('b',null,v),b);
+  b.style.width=Math.min(100,Math.max(2,f*100))+'%';return r};
+const R={
+  texture(s){const w=E('div','tex'),m=Math.max(1,...s.rhythm);
+    s.rhythm.forEach(n=>{const b=E('i');b.style.width=(n/m*100)+'%';b.style.height=Math.max(3,s.font_pt*.5)+'px';
+      b.style.marginBottom=(s.after_pt*.4+(s.line-1)*s.font_pt*.5+2)+'px';w.append(b)});
+    w.append(E('p','says',s.says));return w},
+  text:s=>E('pre',null,s.text),
+  names(s){const d=E('div','chips');s.names.forEach(n=>{const b=E('button',null,n);b.onclick=()=>{pick=n;panel()};d.append(b)});return d},
+  spacing:s=>box(row('Line spacing',s.line,s.line/3),row('After paragraph',s.after_pt+' pt',s.after_pt/30)),
+  margins:s=>box(row('Margin / page width',(s.margin*100).toFixed(1)+'%',s.margin/.3)),
+  font:s=>box(row('Font',s.font,1),row('Size',s.font_pt+' pt',s.font_pt/24)),
+  headings:s=>box(...(s.heads.length?s.heads.map(h=>row('Level '+h[0],h[1],h[1]/5)):[E('p',null,'No headings')])),
+  shape:s=>box(row('Shape',s.shape.replace(/-/g,' '),1),row('Status',s.status,s.status==='matched'?1:.3)),
+  drift:s=>box(row('Drift from nearest shape',s.drift,Math.min(1,s.drift/.5)))
+};
+
+function optSelect(cur){
+  const s=E('select'),mk=o=>{const e=E('option',null,o.label);e.value=o.id;return e};
+  if(groups)groups.forEach(g=>{const og=E('optgroup');og.label=g.name;g.items.forEach(o=>og.append(mk(o)));s.append(og)});
+  else opts.forEach(o=>s.append(mk(o)));
+  s.value=cur;return s;
+}
+
+function openWin(w,via){wins.push(w);if(wins.length>4)wins.shift();opened(w,via);draw()}
+
+function pickOpt(w,v){
+  const prev=w.opt;
+  if(v==='compare'){
+    opened({...w,opt:'compare'},'direct');
+    const b={sec:w.sec,opt:prev==='text'?'texture':'text',big:true};
+    openWin(b,'direct');
+    track('window_compared','pair:'+w.sec+'|'+b.sec,sec(w.sec),{a_option:prev,b_option:b.opt});
+    return;
+  }
+  w.opt=v;opened(w,'direct');draw();
+}
+
+function draw(){
+  const g=$('#grid');g.replaceChildren();
+  wins.forEach((w,i)=>{
+    const s=sec(w.sec),d=cfg.text[w.big?'expanded':'default'];
+    const el=E('div','win'+(w.big?' big':'')),h=E('div','bar'),body=E('div','body');
+    el.style.width=d.width_px+'px';el.style.height=d.height_px+'px';
+    h.append(E('strong',null,s.title));
+    if(w.big){
+      const ss=E('select');secs.forEach(x=>{const o=E('option',null,x.title);o.value=x.id;ss.append(o)});
+      ss.value=w.sec;ss.onchange=()=>{w.sec=ss.value;opened(w,'direct');draw()};
+      const os=optSelect(w.opt);os.onchange=()=>pickOpt(w,os.value);
+      const x=E('button',null,'\u00d7');x.onclick=()=>{wins.splice(i,1);draw()};
+      h.append(ss,os,x);body.append(R[w.opt](s));
+    }else{
+      el.onclick=()=>{w.big=true;opened(w,'direct');draw()};
+      body.append(R.texture(s));
+    }
+    el.append(h,body);g.append(el);
+  });
+}
+
+// branching view: built only from the ledger (measured events), never from the document text
+function panel(){
+  const p=$('#names'),idx={};p.replaceChildren(E('h2',null,'Names'));
+  events.filter(e=>e.type==='measured').forEach(e=>((e.detail||{}).names||[])
+    .forEach(n=>(idx[n]=idx[n]||new Set()).add(e.source)));
+  const ks=Object.keys(idx).sort((a,b)=>idx[b].size-idx[a].size||a.localeCompare(b));
+  if(!ks.length)p.append(E('p',null,'No names in the ledger yet.'));
+  ks.forEach(k=>{
+    const b=E('button',k===pick?'on':'',k+' \u00b7 '+idx[k].size);b.onclick=()=>{pick=k;panel()};p.append(b);
+    if(k===pick)[...idx[k]].forEach(id=>{
+      const s=sec(id);if(!s)return;
+      const a=E('a',null,'\u2192 '+s.title);a.href='#';
+      a.onclick=ev=>{ev.preventDefault();openWin({sec:id,opt:'text',big:true},'branch')};p.append(a);
+    });
+  });
+}
+
+$('#send').onclick=()=>{
+  if(!LOG.length)return;
+  const o=location.hostname.split('.')[0],r=location.pathname.split('/')[1];
+  const body=LOG.slice(0,25).map(({id,timestamp,...e})=>JSON.stringify(e)).join('\n');
+  window.open('https://github.com/'+o+'/'+r+'/issues/new?labels=log&title='+encodeURIComponent('Reader log')+
+    '&body='+encodeURIComponent(body),'_blank');
+  LOG=LOG.slice(25);store.set(LOG);$('#n').textContent=LOG.length;
+};
+
+(async()=>{
+  LOG=store.get();$('#n').textContent=LOG.length;
+  cfg=await soft(async()=>(await get('config/windows.json')).json());
+  if(cfg){
+    opts=cfg.options;
+    await soft(async()=>{for(const d of(await xml('views/index.xml')).querySelectorAll('doc'))
+      (await xml('views/'+A(d,'file'))).querySelectorAll('section').forEach(s=>secs.push(parse(s)))});
+    const o=await soft(()=>xml('views/options.xml'));
+    if(o&&A(o.documentElement,'state')==='grouped')
+      groups=[...o.querySelectorAll('group')].map(g=>({name:A(g,'name'),
+        items:[...g.querySelectorAll('option')].map(x=>({id:A(x,'id'),label:A(x,'label')}))})).filter(g=>g.items.length);
+    const t=await soft(async()=>(await get('ledger/events.jsonl')).text());
+    events=(t||'').split('\n').filter(Boolean).map(l=>{try{return JSON.parse(l)}catch(e){return null}}).filter(Boolean);
+  }
+  if(!cfg||!secs.length){$('#grid').textContent='Drop a .docx in /docs and wait for the workflows.';return}
+  wins=[{sec:secs[0].id,opt:'texture',big:false},{sec:secs[0].id,opt:'text',big:true}];
+  draw();panel();
+})();
+</script>
+</body>
+</html>
